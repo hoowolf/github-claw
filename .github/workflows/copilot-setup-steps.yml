@@ -34,7 +34,10 @@ jobs:
             exit 0
           fi
 
-          mapfile -t skill_dirs < <(find "$skills_root" -mindepth 1 -maxdepth 1 -type d | sort)
+          skill_list_file="$(mktemp)"
+          find "$skills_root" -mindepth 1 -maxdepth 1 -type d | sort > "$skill_list_file"
+          mapfile -t skill_dirs < "$skill_list_file"
+          rm -f "$skill_list_file"
           if [[ ${#skill_dirs[@]} -eq 0 ]]; then
             echo "has_skills=false" >> "$GITHUB_OUTPUT"
             echo "Skills directory exists but no skill subdirectories were found." >> "$GITHUB_STEP_SUMMARY"
