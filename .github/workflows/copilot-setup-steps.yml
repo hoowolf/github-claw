@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          trap 'echo "::error::Discover skills step failed unexpectedly."; echo "Skill discovery failed unexpectedly." >> "$GITHUB_STEP_SUMMARY"' ERR
+          trap 'status=$?; echo "::error::Discover skills failed (exit ${status}). Check .agents/skills path and permissions."; echo "Skill discovery failed (exit ${status}). Please verify .agents/skills path and permissions." >> "$GITHUB_STEP_SUMMARY"' ERR
           skills_root=".agents/skills"
           echo "PROJECT_SKILLS_ROOT=$GITHUB_WORKSPACE/$skills_root" >> "$GITHUB_ENV"
 
@@ -73,9 +73,13 @@ jobs:
             [[ -f "$skill_dir/SKILL.md" ]] || continue
             [[ -f "$skill_dir/install.sh" ]] || continue
             echo "Installing dependencies for $skill_dir"
-            if ! bash "$skill_dir/install.sh"; then
-              echo "::error::Skill install failed: $skill_dir/install.sh"
-              exit 1
+            set +e
+            bash "$skill_dir/install.sh"
+            status=$?
+            set -e
+            if [[ $status -ne 0 ]]; then
+              echo "::error::Skill install failed (exit ${status}): $skill_dir/install.sh"
+              exit "$status"
             fi
             ((installed+=1))
           done < <(find "$skills_root" -mindepth 1 -maxdepth 1 -type d | sort)
