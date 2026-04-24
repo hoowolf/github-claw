@@ -25,7 +25,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          trap 'status=$?; echo "::error::Discover skills failed (exit ${status}). Check .agents/skills path and permissions."; echo "Skill discovery failed (exit ${status}). Please verify .agents/skills path and permissions." >> "$GITHUB_STEP_SUMMARY"' ERR
+          trap 'status=$?;
+            echo "::error::Discover skills failed (exit ${status}). Check .agents/skills path and permissions.";
+            echo "Skill discovery failed (exit ${status}). Please verify .agents/skills path and permissions." >> "$GITHUB_STEP_SUMMARY"' ERR
           skills_root=".agents/skills"
           echo "PROJECT_SKILLS_ROOT=$GITHUB_WORKSPACE/$skills_root" >> "$GITHUB_ENV"
 
@@ -35,10 +37,12 @@ jobs:
             exit 0
           fi
 
-          skill_list_file="$(mktemp)"
-          find "$skills_root" -mindepth 1 -maxdepth 1 -type d | sort > "$skill_list_file"
-          mapfile -t skill_dirs < "$skill_list_file"
-          rm -f "$skill_list_file"
+          skill_dirs_output="$(find "$skills_root" -mindepth 1 -maxdepth 1 -type d | sort)"
+          if [[ -n "$skill_dirs_output" ]]; then
+            mapfile -t skill_dirs <<< "$skill_dirs_output"
+          else
+            skill_dirs=()
+          fi
           if [[ ${#skill_dirs[@]} -eq 0 ]]; then
             echo "has_skills=false" >> "$GITHUB_OUTPUT"
             echo "Skills directory exists but no skill subdirectories were found." >> "$GITHUB_STEP_SUMMARY"
@@ -73,14 +77,11 @@ jobs:
             [[ -f "$skill_dir/SKILL.md" ]] || continue
             [[ -f "$skill_dir/install.sh" ]] || continue
             echo "Installing dependencies for $skill_dir"
-            set +e
-            bash "$skill_dir/install.sh"
-            status=$?
-            set -e
-            if [[ $status -ne 0 ]]; then
+            bash "$skill_dir/install.sh" || {
+              status=$?
               echo "::error::Skill install failed (exit ${status}): $skill_dir/install.sh"
               exit "$status"
-            fi
+            }
             ((installed+=1))
           done < <(find "$skills_root" -mindepth 1 -maxdepth 1 -type d | sort)
 
