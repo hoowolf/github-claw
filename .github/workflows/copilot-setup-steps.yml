@@ -69,7 +69,10 @@ jobs:
             [[ -f "$skill_dir/SKILL.md" ]] || continue
             [[ -f "$skill_dir/install.sh" ]] || continue
             echo "Installing dependencies for $skill_dir"
-            bash "$skill_dir/install.sh"
+            if ! bash "$skill_dir/install.sh"; then
+              echo "::error::Skill install failed: $skill_dir/install.sh"
+              exit 1
+            fi
             ((installed+=1))
           done < <(find "$skills_root" -mindepth 1 -maxdepth 1 -type d | sort)
 
