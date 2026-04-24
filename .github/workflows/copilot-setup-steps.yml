@@ -1,0 +1,76 @@
+name: Copilot Setup Steps
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+      - .agents/skills/**
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+      - .agents/skills/**
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Discover skills
+        id: discover
+        shell: bash
+        run: |
+          set -euo pipefail
+          skills_root=".agents/skills"
+          echo "PROJECT_SKILLS_ROOT=$GITHUB_WORKSPACE/$skills_root" >> "$GITHUB_ENV"
+
+          if [[ ! -d "$skills_root" ]]; then
+            echo "has_skills=false" >> "$GITHUB_OUTPUT"
+            echo "No skills directory found at $skills_root" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          mapfile -t skill_dirs < <(find "$skills_root" -mindepth 1 -maxdepth 1 -type d | sort)
+          if [[ ${#skill_dirs[@]} -eq 0 ]]; then
+            echo "has_skills=false" >> "$GITHUB_OUTPUT"
+            echo "Skills directory exists but no skill subdirectories were found." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          valid_count=0
+          for dir in "${skill_dirs[@]}"; do
+            if [[ -f "$dir/SKILL.md" ]]; then
+              ((valid_count+=1))
+              echo "- $dir" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- $dir (ignored: missing SKILL.md)" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
+
+          if [[ $valid_count -eq 0 ]]; then
+            echo "has_skills=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_skills=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install skill dependencies
+        if: steps.discover.outputs.has_skills == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          skills_root=".agents/skills"
+          installed=0
+
+          while IFS= read -r skill_dir; do
+            [[ -f "$skill_dir/SKILL.md" ]] || continue
+            [[ -f "$skill_dir/install.sh" ]] || continue
+            echo "Installing dependencies for $skill_dir"
+            bash "$skill_dir/install.sh"
+            ((installed+=1))
+          done < <(find "$skills_root" -mindepth 1 -maxdepth 1 -type d | sort)
+
+          echo "Installed scripts count: $installed" >> "$GITHUB_STEP_SUMMARY"
