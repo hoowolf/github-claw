@@ -25,6 +25,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          trap 'echo "::error::Discover skills step failed unexpectedly."; echo "Skill discovery failed unexpectedly." >> "$GITHUB_STEP_SUMMARY"' ERR
           skills_root=".agents/skills"
           echo "PROJECT_SKILLS_ROOT=$GITHUB_WORKSPACE/$skills_root" >> "$GITHUB_ENV"
 
